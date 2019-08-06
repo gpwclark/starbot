@@ -60,6 +60,10 @@ function getPlayersOnTeam(teamUniqueId, scoringPeriodId) {
         let id = players[0].id + "";
         if (id === teamId) {
             let thisTeamsPlayers = _.get(players[0], ['roster', 'entries']);
+            thisTeamsPlayers.forEach((i) => {
+                console.log("keys: " + Object.keys(i.playerPoolEntry.player ));
+                delete i.playerPoolEntry.player.rankings;
+            });
             return thisTeamsPlayers;
         }
     })
@@ -119,13 +123,10 @@ bot.message((msg) => {
 	        let teamId = m.id;
 	        console.log("m: " + JSON.stringify(m));
 	        getPlayersOnTeam(teamId, 0).then((players) => {
-	            players.forEach((player) => {
-                    delete player.rankings;
-                    newMember.players = players;
-                    console.log("players " + players.length);
-                    newTeams.push(newMember);
-                    slackPost(msg, newMember);
-                });
+                newMember.players = players;
+                console.log("players " + players.length);
+                newTeams.push(newMember);
+                slackPost(msg, newMember);
             });
         });
 	});
