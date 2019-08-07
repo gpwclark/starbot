@@ -18,6 +18,7 @@ let thisUrl = process.env.THIS_URL;
 //const ffClient = new Client({ leagueId: leagueId });
 axios.defaults.baseURL = "https://fantasy.espn.com/apis/v3/games/ffl/seasons/"
 const routeBase = `${seasonId}/segments/0/leagues/${leagueId}`;
+const positionMap = {"1":"qb", "2":"rb", "3":"wr", "4":"te", "5":"k", "6":"d"};
 
 
 // keep dyno from falling asleep.
@@ -56,12 +57,12 @@ function getPlayersOnTeam(teamUniqueId, scoringPeriodId) {
 
     return axios.get(getPlayersRoute, _buildAxiosConfig()).then((response) => {
         const players = _.get(response.data, 'teams');
-        console.log("len " + players.length);
+        //console.log("len " + players.length);
         let id = players[0].id + "";
         if (id === teamId) {
             let thisTeamsPlayers = _.get(players[0], ['roster', 'entries']);
             thisTeamsPlayers.forEach((i) => {
-                console.log("keys: " + Object.keys(i.playerPoolEntry.player ));
+                //console.log("keys: " + Object.keys(i.playerPoolEntry.player ));
                 delete i.playerPoolEntry.player.rankings;
             });
             return thisTeamsPlayers;
@@ -98,11 +99,6 @@ function slackPost(msg, outgoing) {
         let txt = _.truncate(data.message.text)
         console.log(`🤖  bleep bloop: I responded with "${txt}"`)
     })
-        /*
-    .catch((err) => {
-        console.log(`slack post message failed ${err} ${JSON.stringify(err)}`);
-    });
-         */
 }
 
 bot.started((payload) => {
@@ -112,21 +108,61 @@ bot.started((payload) => {
 	console.log(`teamIdMap teamIdmap: ${JSON.stringify(teamIdMap)}`)
 });
 
+function getRandomInt(max) {
+  return Math.floor(Math.random() * Math.floor(max));
+}
+
+function isEligible(targetPlayer) {
+    return targetPlayer.playerPoolEntry.player.injured !== true;
+}
+
+function pickFirstTeam(teams) {
+    let leagueSize = teams.length;
+    let targetTeamidx = getRandomInt(leagueSize);
+    let targetTeam = teams[targetTeamidx];
+    console.log("team Keys! " + JSON.stringify(Object.keys(targetTeam)));
+    let teamSize = targetTeam.players.length;
+    let targetPlayerIdx = getRandomInt(teamSize);
+    let targetPlayer = targetTeam.players[targetPlayerIdx];
+    console.log("player Keys! " + JSON.stringify(Object.keys(targetPlayer)));
+    if (isEligible(targetPlayer)) {
+        console.log("eligible");
+    }
+    else {
+        console.log("not eligible");
+    }
+    console.log("target player " + JSON.stringify(targetPlayer));
+}
+
+function chaosRoll(msg, teams) {
+    pickFirstTeam(teams);
+    slackPost(msg, "{}");
+}
+
+function aggregate(msg, teams, leagueSize) {
+    if (teams.length === leagueSize) {
+        //console.log(teams.length);
+        //console.log(JSON.stringify(teams[0]));
+        chaosRoll(msg, teams);
+        //slackPost(msg, teams[0]);
+    }
+}
+
 bot.message((msg) => {
 	if (!msg.user) return
 	if (!_.includes(msg.text.match(/<@([A-Z0-9])+>/igm), `<@${bot.self.id}>`)) return
 
 	getTeamsInLeague().then((teams) => {
 	    let newTeams = [];
+	    let leagueSize = teams.length;
 	    teams.forEach((m, idx, arr) => {
 	        let newMember = m;
 	        let teamId = m.id;
-	        console.log("m: " + JSON.stringify(m));
 	        getPlayersOnTeam(teamId, 0).then((players) => {
                 newMember.players = players;
-                console.log("players " + players.length);
+                //console.log("players " + players.length);
                 newTeams.push(newMember);
-                slackPost(msg, newMember);
+                aggregate(msg, newTeams, leagueSize);
             });
         });
 	});
