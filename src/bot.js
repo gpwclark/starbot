@@ -18,8 +18,6 @@ let thisUrl = process.env.THIS_URL;
 //const ffClient = new Client({ leagueId: leagueId });
 axios.defaults.baseURL = "https://fantasy.espn.com/apis/v3/games/ffl/seasons/"
 const routeBase = `${seasonId}/segments/0/leagues/${leagueId}`;
-const positionMap = {"1":"qb", "2":"rb", "3":"wr", "4":"te", "5":"k", "6":"d"};
-
 
 // keep dyno from falling asleep.
 var reqTimer = setTimeout(function wakeUp() {
@@ -116,30 +114,136 @@ function isEligible(targetPlayer) {
     return targetPlayer.playerPoolEntry.player.injured !== true;
 }
 
-function pickFirstTeam(teams) {
+function pickTeamAndPlayer(teams) {
+    let aTeam = {};
+
     let leagueSize = teams.length;
     let targetTeamidx = getRandomInt(leagueSize);
     let targetTeam = teams[targetTeamidx];
-    console.log("team Keys! " + JSON.stringify(Object.keys(targetTeam)));
     let teamSize = targetTeam.players.length;
     let targetPlayerIdx = getRandomInt(teamSize);
     let targetPlayer = targetTeam.players[targetPlayerIdx];
-    console.log("player Keys! " + JSON.stringify(Object.keys(targetPlayer)));
+
     if (isEligible(targetPlayer)) {
-        console.log("eligible");
+        aTeam.team = targetTeam;
+        aTeam.player = targetPlayer;
     }
     else {
-        console.log("not eligible");
+        console.log("not eligible, re-rolling: " + JSON.stringify(targetPlayer.playerPoolEntry.player));
+        return pickTeamAndPlayer(teams);
     }
-    console.log("target player " + JSON.stringify(targetPlayer));
+    return aTeam;
+}
+
+function getPositionIdOfPlayer(player) {
+    let playerId =  player.playerPoolEntry.player.defaultPositionId;
+    console.log("target player " + JSON.stringify(player.playerPoolEntry.player));
+    console.log("defaultPositionId " + JSON.stringify(playerId));
+    return playerId;
+}
+
+const positionMap = {1:"qb", 2:"rb", 3:"wr", 4:"te", 5:"k", 16:"d"};
+const playerTradeGroup = [5, 16]; //decision to group kickers and defense together.
+const tiers = {"tier1": {"min": 40.0, "max": 200.0},
+                "tier2":{"min":20.0,"max":40.0},
+                "tier3":{"min":0.0, "max":20.0}};
+
+function getAuctionDraftValueOfPlayer(player) {
+    //this is the GLOBAL average for all of the players
+    //TODO maybe make note if we over/under valued a player.
+    let value = player.playerPoolEntry.player.ownership.auctionValueAverage;
+    console.log("for player: " + JSON.stringify(player.playerPoolEntry.player.ownership));
+    console.log("auctionDraftValue: " + value);
+    return value;
+}
+
+function getTier(auctionDraftValue) {
+    let tier;
+    for (let i = 0; i < Object.keys(tiers).length; ++i) {
+        let tierKey = Object.keys(tiers)[i];
+        tier = tiers[tierKey];
+        let min = tier.min;
+        let max = tier.max;
+        console.log("min! " + min);
+        console.log("type min! " + typeof min);
+        console.log("max! " + max);
+        console.log("max! " + typeof max);
+        if (auctionDraftValue >= min && auctionDraftValue < max) {
+            console.log("selected tier " + JSON.stringify(tier) + "for player with value " + auctionDraftValue);
+            break;
+        }
+        else {
+            console.log("did not select tier " + JSON.stringify(tier) + "for player with value " + auctionDraftValue);
+        }
+    }
+    return tier;
+}
+
+function getPlayerTier(player) {
+    let auctionDraftValue = getAuctionDraftValueOfPlayer(player);
+    return getTier(auctionDraftValue);
+}
+
+function arePlayersInSameTier(firstTeamAndPlayer, secondTeamAndPlayer) {
+    let firstPlayerTier = getPlayerTier(firstTeamAndPlayer.player);
+    let secondPlayerTier = getPlayerTier(secondTeamAndPlayer.player);
+    console.log("1st player tier " + JSON.stringify(firstPlayerTier));
+    console.log("2nd player tier " + JSON.stringify(secondPlayerTier));
+    let arePlayersInSameTier = firstPlayerTier === secondPlayerTier;
+    console.log("arePlayersInsameTier " + arePlayersInSameTier);
+    return arePlayersInSameTier;
+}
+
+function arePlayersInSameGroup(firstTeamAndPlayer, secondTeamAndPlayer) {
+    let firstTeamPositionId = getPositionIdOfPlayer(firstTeamAndPlayer.player);
+    let secondTeamPositionId = getPositionIdOfPlayer(secondTeamAndPlayer.player);
+    let firstTeamPlayerInGroup = playerTradeGroup.includes(firstTeamPositionId);
+    let secondTeamPlayerInGroup = playerTradeGroup.includes(secondTeamPositionId);
+    console.log("First team player " + JSON.stringify(firstTeamAndPlayer.player.playerPoolEntry.player));
+    console.log("second team player " + JSON.stringify(secondTeamAndPlayer.player.playerPoolEntry.player));
+    console.log("First team player in group? " + firstTeamPlayerInGroup);
+    console.log("second team player in group? " + secondTeamPlayerInGroup);
+
+    let arePlayersInSameGroup = (firstTeamPlayerInGroup && secondTeamPlayerInGroup) || (!firstTeamPlayerInGroup && !secondTeamPlayerInGroup);
+    console.log("are players in same group? " + arePlayersInSameGroup);
+    return arePlayersInSameGroup;
+}
+
+function teamsAreDifferent(firstTeamAndPlayer, secondTeamAndPlayer) {
+    let teamOne = firstTeamAndPlayer.team;
+    let teamTwo = secondTeamAndPlayer.team;
+    return teamOne.id !== teamTwo.id;
 }
 
 function chaosRoll(msg, teams) {
-    pickFirstTeam(teams);
-    slackPost(msg, "{}");
+    let firstTeamAndPlayer = pickTeamAndPlayer(teams);
+    let secondTeamAndPlayer = pickTeamAndPlayer(teams);
+
+    console.log("CHAOS ROLL!!!!!");
+    while(!(teamsAreDifferent(firstTeamAndPlayer, secondTeamAndPlayer)
+            && arePlayersInSameGroup(firstTeamAndPlayer, secondTeamAndPlayer)
+            && arePlayersInSameTier(firstTeamAndPlayer, secondTeamAndPlayer))) {
+        console.log("looking for new second player");
+        secondTeamAndPlayer = pickTeamAndPlayer(teams);
+    }
+    console.log("CHAOS ROLL DONE!!!!!");
+
+    let choice = {};
+    choice.firstTeam = firstTeamAndPlayer.team.firstName;
+    choice.firstPlayer = firstTeamAndPlayer.player.playerPoolEntry.player.fullName;
+    choice.firstPlayerValue = firstTeamAndPlayer.player.playerPoolEntry.player.ownership.auctionValueAverage;
+    choice.firstPlayerPositionId = positionMap[firstTeamAndPlayer.player.playerPoolEntry.player.defaultPositionId];
+
+    choice.secondTeam = secondTeamAndPlayer.team.firstName;
+    choice.secondPlayer = secondTeamAndPlayer.player.playerPoolEntry.player.fullName;
+    choice.secondPlayervalue = secondTeamAndPlayer.player.playerPoolEntry.player.ownership.auctionValueAverage;
+    choice.secondPlayerPositionId = positionMap[secondTeamAndPlayer.player.playerPoolEntry.player.defaultPositionId];
+
+    // we're good
+    slackPost(msg, choice);
 }
 
-function aggregate(msg, teams, leagueSize) {
+function determineIfChaosRollReady(msg, teams, leagueSize) {
     if (teams.length === leagueSize) {
         //console.log(teams.length);
         //console.log(JSON.stringify(teams[0]));
@@ -158,11 +262,12 @@ bot.message((msg) => {
 	    teams.forEach((m, idx, arr) => {
 	        let newMember = m;
 	        let teamId = m.id;
+	        //TODO make this a parameter!!! do not hardcode 0!!!
 	        getPlayersOnTeam(teamId, 0).then((players) => {
                 newMember.players = players;
                 //console.log("players " + players.length);
                 newTeams.push(newMember);
-                aggregate(msg, newTeams, leagueSize);
+                determineIfChaosRollReady(msg, newTeams, leagueSize);
             });
         });
 	});
