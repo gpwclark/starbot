@@ -6,6 +6,7 @@ import axios from 'axios';
 const slack = require('slack')
 const _ = require('lodash')
 const config = require('./config')
+const request = require('request');
 
 let bot = slack.rtm.client()
 let leagueId = process.env.LEAGUE_ID;
@@ -14,6 +15,7 @@ let espnS2 = process.env.ESPN_S2;
 let swid = process.env.SWID;
 let teamIdMap = JSON.parse(process.env.TEAM_ID_MAP);
 let thisUrl = process.env.THIS_URL;
+let timeout = Number(process.env.TIMEOUT);
 //will use the api once it has the methods I need.
 //const ffClient = new Client({ leagueId: leagueId });
 axios.defaults.baseURL = "https://fantasy.espn.com/apis/v3/games/ffl/seasons/"
@@ -24,8 +26,8 @@ var reqTimer = setTimeout(function wakeUp() {
    request(thisUrl, function() {
          console.log("WAKE UP DYNO");
       });
-   return reqTimer = setTimeout(wakeUp, 1200000);
-}, 1200000);
+   return reqTimer = setTimeout(wakeUp, timeout);
+}, timeout);
 
 function getMessage() {
 	return `beep boop! ${leagueId} ${seasonId}"`
@@ -147,6 +149,13 @@ const playerTradeGroup = [5, 16]; //decision to group kickers and defense togeth
 const tiers = {"tier1": {"min": 40.0, "max": 200.0},
                 "tier2":{"min":20.0,"max":40.0},
                 "tier3":{"min":0.0, "max":20.0}};
+/*
+const specialTierGroup = [1, 4];
+const specialTier = {"tier1": {"min": 0, "max": 4}, "tier2": {"min":4, "max": 12}, "tier3": {"min":12, "max": 1000000}};
+const normalTier = {"tier1": {"min": 0, "max": 12}, "tier2": {"min":12, "max": 40}, "tier3": {"min":40, "max": 1000000}};
+function getPositionalTiers() {
+}
+ */
 
 function getAuctionDraftValueOfPlayer(player) {
     //this is the GLOBAL average for all of the players
@@ -157,7 +166,8 @@ function getAuctionDraftValueOfPlayer(player) {
     return value;
 }
 
-function getTier(auctionDraftValue) {
+function getTier(auctionDraftValue, firstTeamPlayer) {
+    //let tiers = getPositionalTiers();
     let tier;
     for (let i = 0; i < Object.keys(tiers).length; ++i) {
         let tierKey = Object.keys(tiers)[i];
@@ -254,23 +264,39 @@ function determineIfChaosRollReady(msg, teams, leagueSize) {
 
 bot.message((msg) => {
 	if (!msg.user) return
-	if (!_.includes(msg.text.match(/<@([A-Z0-9])+>/igm), `<@${bot.self.id}>`)) return
+	let id = `<@${bot.self.id}>`;
+	if (!_.includes(msg.text.match(/<@([A-Z0-9])+>/igm), id)) return
 
-	getTeamsInLeague().then((teams) => {
-	    let newTeams = [];
-	    let leagueSize = teams.length;
-	    teams.forEach((m, idx, arr) => {
-	        let newMember = m;
-	        let teamId = m.id;
-	        //TODO make this a parameter!!! do not hardcode 0!!!
-	        getPlayersOnTeam(teamId, 0).then((players) => {
-                newMember.players = players;
-                //console.log("players " + players.length);
-                newTeams.push(newMember);
-                determineIfChaosRollReady(msg, newTeams, leagueSize);
-            });
-        });
-	});
+	let text = msg.text;
+	let scoringPeriodId = text.replace(id, "");
+	text = scoringPeriodId;
+	let invalidScoringPeriodId = true;
+	let scoringPeriod = undefined;
+	if (scoringPeriodId !== undefined) {
+		scoringPeriod = Number(scoringPeriodId.trim());
+		console.log("shit: " + scoringPeriodId.trim())
+		console.log("fuck: " + scoringPeriod)
+	}
+	if (!!scoringPeriod) {
+		getTeamsInLeague().then((teams) => {
+			let newTeams = [];
+			let leagueSize = teams.length;
+			teams.forEach((m, idx, arr) => {
+				let newMember = m;
+				let teamId = m.id;
+				//TODO make this a parameter!!! do not hardcode 0!!!
+				getPlayersOnTeam(teamId, scoringPeriod).then((players) => {
+					newMember.players = players;
+					//console.log("players " + players.length);
+					newTeams.push(newMember);
+					determineIfChaosRollReady(msg, newTeams, leagueSize);
+				});
+			});
+		});
+	}
+	else {
+		slackPost(msg, "invalid request: " + text + ". Pass me a number. How about the current week of the season?");
+	}
 });
 
 module.exports = bot
