@@ -131,7 +131,8 @@ function pickTeamAndPlayer(teams) {
         aTeam.player = targetPlayer;
     }
     else {
-        console.log("not eligible, re-rolling: " + JSON.stringify(targetPlayer.playerPoolEntry.player));
+        //console.log("not eligible, re-rolling: " + JSON.stringify(targetPlayer.playerPoolEntry.player));
+        console.log("not eligible, re-rolling.");
         return pickTeamAndPlayer(teams);
     }
     return aTeam;
@@ -139,8 +140,8 @@ function pickTeamAndPlayer(teams) {
 
 function getPositionIdOfPlayer(player) {
     let playerId =  player.playerPoolEntry.player.defaultPositionId;
-    console.log("target player " + JSON.stringify(player.playerPoolEntry.player));
-    console.log("defaultPositionId " + JSON.stringify(playerId));
+    //console.log("target player " + JSON.stringify(player.playerPoolEntry.player));
+    //console.log("defaultPositionId " + JSON.stringify(playerId));
     return playerId;
 }
 
@@ -161,8 +162,8 @@ function getAuctionDraftValueOfPlayer(player) {
     //this is the GLOBAL average for all of the players
     //TODO maybe make note if we over/under valued a player.
     let value = player.playerPoolEntry.player.ownership.auctionValueAverage;
-    console.log("for player: " + JSON.stringify(player.playerPoolEntry.player.ownership));
-    console.log("auctionDraftValue: " + value);
+    //console.log("for player: " + JSON.stringify(player.playerPoolEntry.player.ownership));
+    //console.log("auctionDraftValue: " + value);
     return value;
 }
 
@@ -174,16 +175,16 @@ function getTier(auctionDraftValue, firstTeamPlayer) {
         tier = tiers[tierKey];
         let min = tier.min;
         let max = tier.max;
-        console.log("min! " + min);
-        console.log("type min! " + typeof min);
-        console.log("max! " + max);
-        console.log("max! " + typeof max);
+        //console.log("min! " + min);
+        //console.log("type min! " + typeof min);
+        //console.log("max! " + max);
+        //console.log("max! " + typeof max);
         if (auctionDraftValue >= min && auctionDraftValue < max) {
-            console.log("selected tier " + JSON.stringify(tier) + "for player with value " + auctionDraftValue);
+            //console.log("selected tier " + JSON.stringify(tier) + "for player with value " + auctionDraftValue);
             break;
         }
         else {
-            console.log("did not select tier " + JSON.stringify(tier) + "for player with value " + auctionDraftValue);
+            //console.log("did not select tier " + JSON.stringify(tier) + "for player with value " + auctionDraftValue);
         }
     }
     return tier;
@@ -197,10 +198,10 @@ function getPlayerTier(player) {
 function arePlayersInSameTier(firstTeamAndPlayer, secondTeamAndPlayer) {
     let firstPlayerTier = getPlayerTier(firstTeamAndPlayer.player);
     let secondPlayerTier = getPlayerTier(secondTeamAndPlayer.player);
-    console.log("1st player tier " + JSON.stringify(firstPlayerTier));
-    console.log("2nd player tier " + JSON.stringify(secondPlayerTier));
+    //console.log("1st player tier " + JSON.stringify(firstPlayerTier));
+    //console.log("2nd player tier " + JSON.stringify(secondPlayerTier));
     let arePlayersInSameTier = firstPlayerTier === secondPlayerTier;
-    console.log("arePlayersInsameTier " + arePlayersInSameTier);
+    //console.log("arePlayersInsameTier " + arePlayersInSameTier);
     return arePlayersInSameTier;
 }
 
@@ -209,13 +210,13 @@ function arePlayersInSameGroup(firstTeamAndPlayer, secondTeamAndPlayer) {
     let secondTeamPositionId = getPositionIdOfPlayer(secondTeamAndPlayer.player);
     let firstTeamPlayerInGroup = playerTradeGroup.includes(firstTeamPositionId);
     let secondTeamPlayerInGroup = playerTradeGroup.includes(secondTeamPositionId);
-    console.log("First team player " + JSON.stringify(firstTeamAndPlayer.player.playerPoolEntry.player));
-    console.log("second team player " + JSON.stringify(secondTeamAndPlayer.player.playerPoolEntry.player));
-    console.log("First team player in group? " + firstTeamPlayerInGroup);
-    console.log("second team player in group? " + secondTeamPlayerInGroup);
+    //console.log("First team player " + JSON.stringify(firstTeamAndPlayer.player.playerPoolEntry.player));
+    //console.log("second team player " + JSON.stringify(secondTeamAndPlayer.player.playerPoolEntry.player));
+    //console.log("First team player in group? " + firstTeamPlayerInGroup);
+    //console.log("second team player in group? " + secondTeamPlayerInGroup);
 
     let arePlayersInSameGroup = (firstTeamPlayerInGroup && secondTeamPlayerInGroup) || (!firstTeamPlayerInGroup && !secondTeamPlayerInGroup);
-    console.log("are players in same group? " + arePlayersInSameGroup);
+    //console.log("are players in same group? " + arePlayersInSameGroup);
     return arePlayersInSameGroup;
 }
 
@@ -274,8 +275,6 @@ bot.message((msg) => {
 	let scoringPeriod = undefined;
 	if (scoringPeriodId !== undefined) {
 		scoringPeriod = Number(scoringPeriodId.trim());
-		console.log("shit: " + scoringPeriodId.trim())
-		console.log("fuck: " + scoringPeriod)
 	}
 	if (!!scoringPeriod) {
 		getTeamsInLeague().then((teams) => {
