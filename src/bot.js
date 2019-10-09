@@ -147,9 +147,9 @@ function getPositionIdOfPlayer(player) {
 
 const positionMap = {1:"qb", 2:"rb", 3:"wr", 4:"te", 5:"k", 16:"d"};
 const playerTradeGroup = [5, 16]; //decision to group kickers and defense together.
-const tiers = {"tier1": {"min": 40.0, "max": 200.0},
-                "tier2":{"min":20.0,"max":40.0},
-                "tier3":{"min":0.0, "max":20.0}};
+const tiers = {"tier1": {"min": 30.0, "max": 200.0},
+                "tier2":{"min":15.0,"max":30.0},
+                "tier3":{"min":0.0, "max":15.0}};
 /*
 const specialTierGroup = [1, 4];
 const specialTier = {"tier1": {"min": 0, "max": 4}, "tier2": {"min":4, "max": 12}, "tier3": {"min":12, "max": 1000000}};
