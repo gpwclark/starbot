@@ -150,6 +150,7 @@ const playerTradeGroup = [5, 16]; //decision to group kickers and defense togeth
 const tiers = {"tier1": {"min": 30.0, "max": 200.0},
                 "tier2":{"min":15.0,"max":30.0},
                 "tier3":{"min":0.0, "max":15.0}};
+
 /*
 const specialTierGroup = [1, 4];
 const specialTier = {"tier1": {"min": 0, "max": 4}, "tier2": {"min":4, "max": 12}, "tier3": {"min":12, "max": 1000000}};
@@ -294,7 +295,7 @@ bot.message((msg) => {
 		});
 	}
 	else {
-		slackPost(msg, "invalid request: " + text + ". Pass me a number. How about the current week of the season?");
+		slackPost(msg, "invalid request: " + text + ". Pass me a number. How about the current week of the season? ...Ignore anything brock says.");
 	}
 });
 
