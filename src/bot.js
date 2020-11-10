@@ -113,7 +113,12 @@ function getRandomInt(max) {
 }
 
 function isEligible(targetPlayer) {
-    return targetPlayer.playerPoolEntry.player.injured !== true;
+    if (targetPlayer.playerPoolEntry.player.injuryStatus === "DOUBTFUL") {
+        return false;
+    }
+    else {
+        return targetPlayer.playerPoolEntry.player.injured !== true;
+    }
 }
 
 function pickTeamAndPlayer(teams) {
@@ -147,17 +152,22 @@ function getPositionIdOfPlayer(player) {
 
 const positionMap = {1:"qb", 2:"rb", 3:"wr", 4:"te", 5:"k", 16:"d"};
 const playerTradeGroup = [5, 16]; //decision to group kickers and defense together.
-const tiers = {"tier1": {"min": 30.0, "max": 200.0},
+const auctionDraftTiers = {"tier1": {"min": 30.0, "max": 200.0},
                 "tier2":{"min":15.0,"max":30.0},
                 "tier3":{"min":0.0, "max":15.0}};
 
-/*
 const specialTierGroup = [1, 4];
-const specialTier = {"tier1": {"min": 0, "max": 4}, "tier2": {"min":4, "max": 12}, "tier3": {"min":12, "max": 1000000}};
-const normalTier = {"tier1": {"min": 0, "max": 12}, "tier2": {"min":12, "max": 40}, "tier3": {"min":40, "max": 1000000}};
-function getPositionalTiers() {
+const specialRankTier = {"tier1": {"min": 0, "max": 4}, "tier2": {"min":4, "max": 12}, "tier3": {"min":12, "max": 1000000}};
+const normalRankTier = {"tier1": {"min": 0, "max": 12}, "tier2": {"min":12, "max": 40}, "tier3": {"min":40, "max": 1000000}};
+
+function getRankValueOfPlayer(player) {
+    //this is the GLOBAL average for all of the players
+    //TODO maybe make note if we over/under valued a player.
+    let value = player.playerPoolEntry.ratings[0].positionalRanking;
+    //console.log("for player: " + JSON.stringify(player.playerPoolEntry.player.ownership));
+    //console.log("auctionDraftValue: " + value);
+    return value;
 }
- */
 
 function getAuctionDraftValueOfPlayer(player) {
     //this is the GLOBAL average for all of the players
@@ -168,56 +178,59 @@ function getAuctionDraftValueOfPlayer(player) {
     return value;
 }
 
-function getTier(auctionDraftValue, firstTeamPlayer) {
-    //let tiers = getPositionalTiers();
-    let tier;
+function checkTier(value, tiers) {
+    let tierVal;
     for (let i = 0; i < Object.keys(tiers).length; ++i) {
         let tierKey = Object.keys(tiers)[i];
-        tier = tiers[tierKey];
+        let tier = tiers[tierKey];
         let min = tier.min;
         let max = tier.max;
-        //console.log("min! " + min);
-        //console.log("type min! " + typeof min);
-        //console.log("max! " + max);
-        //console.log("max! " + typeof max);
-        if (auctionDraftValue >= min && auctionDraftValue < max) {
-            //console.log("selected tier " + JSON.stringify(tier) + "for player with value " + auctionDraftValue);
+        if (value >= min && value < max) {
+            tierVal = tierKey;
             break;
         }
-        else {
-            //console.log("did not select tier " + JSON.stringify(tier) + "for player with value " + auctionDraftValue);
-        }
     }
-    return tier;
+    return tierVal;
 }
 
-function getPlayerTier(player) {
-    let auctionDraftValue = getAuctionDraftValueOfPlayer(player);
-    return getTier(auctionDraftValue);
+function getPositionRankTier(rankValue, positionId) {
+    if (_.includes(specialTierGroup, positionId)) {
+        return checkTier(rankValue, specialRankTier)
+    }
+    else {
+        return checkTier(rankValue, normalRankTier)
+    }
 }
 
-function arePlayersInSameTier(firstTeamAndPlayer, secondTeamAndPlayer) {
-    let firstPlayerTier = getPlayerTier(firstTeamAndPlayer.player);
-    let secondPlayerTier = getPlayerTier(secondTeamAndPlayer.player);
-    //console.log("1st player tier " + JSON.stringify(firstPlayerTier));
-    //console.log("2nd player tier " + JSON.stringify(secondPlayerTier));
-    let arePlayersInSameTier = firstPlayerTier === secondPlayerTier;
-    //console.log("arePlayersInsameTier " + arePlayersInSameTier);
-    return arePlayersInSameTier;
+function getAuctionDraftTier(auctionDraftValue) {
+    return checkTier(auctionDraftValue, auctionDraftTiers);
 }
 
-function arePlayersInSameGroup(firstTeamAndPlayer, secondTeamAndPlayer) {
+function getPlayerTier(player, scoringPeriod) {
+    let positionId = getPositionIdOfPlayer(player);
+    if (scoringPeriod >= 4) {
+        let rankValue = getRankValueOfPlayer(player);
+        return getPositionRankTier(rankValue, positionId);
+    }
+    else {
+        let auctionDraftValue = getAuctionDraftValueOfPlayer(player);
+        return getAuctionDraftTier(auctionDraftValue);
+    }
+}
+
+function arePlayersInSameTier(firstTeamAndPlayer, secondTeamAndPlayer, scoringPeriod) {
+    let firstPlayerTier = getPlayerTier(firstTeamAndPlayer.player, scoringPeriod);
+    let secondPlayerTier = getPlayerTier(secondTeamAndPlayer.player, scoringPeriod);
+    return firstPlayerTier === secondPlayerTier;
+}
+
+function arePlayersInSameGroup(firstTeamAndPlayer, secondTeamAndPlayer, scoringPeriod) {
     let firstTeamPositionId = getPositionIdOfPlayer(firstTeamAndPlayer.player);
     let secondTeamPositionId = getPositionIdOfPlayer(secondTeamAndPlayer.player);
     let firstTeamPlayerInGroup = playerTradeGroup.includes(firstTeamPositionId);
     let secondTeamPlayerInGroup = playerTradeGroup.includes(secondTeamPositionId);
-    //console.log("First team player " + JSON.stringify(firstTeamAndPlayer.player.playerPoolEntry.player));
-    //console.log("second team player " + JSON.stringify(secondTeamAndPlayer.player.playerPoolEntry.player));
-    //console.log("First team player in group? " + firstTeamPlayerInGroup);
-    //console.log("second team player in group? " + secondTeamPlayerInGroup);
 
     let arePlayersInSameGroup = (firstTeamPlayerInGroup && secondTeamPlayerInGroup) || (!firstTeamPlayerInGroup && !secondTeamPlayerInGroup);
-    //console.log("are players in same group? " + arePlayersInSameGroup);
     return arePlayersInSameGroup;
 }
 
@@ -227,14 +240,14 @@ function teamsAreDifferent(firstTeamAndPlayer, secondTeamAndPlayer) {
     return teamOne.id !== teamTwo.id;
 }
 
-function chaosRoll(msg, teams) {
+function chaosRoll(msg, teams, scoringPeriod) {
     let firstTeamAndPlayer = pickTeamAndPlayer(teams);
     let secondTeamAndPlayer = pickTeamAndPlayer(teams);
 
     console.log("CHAOS ROLL!!!!!");
     while(!(teamsAreDifferent(firstTeamAndPlayer, secondTeamAndPlayer)
-            && arePlayersInSameGroup(firstTeamAndPlayer, secondTeamAndPlayer)
-            && arePlayersInSameTier(firstTeamAndPlayer, secondTeamAndPlayer))) {
+            && arePlayersInSameGroup(firstTeamAndPlayer, secondTeamAndPlayer, scoringPeriod)
+            && arePlayersInSameTier(firstTeamAndPlayer, secondTeamAndPlayer, scoringPeriod))) {
         console.log("looking for new second player");
         secondTeamAndPlayer = pickTeamAndPlayer(teams);
     }
@@ -243,23 +256,30 @@ function chaosRoll(msg, teams) {
     let choice = {};
     choice.firstTeam = firstTeamAndPlayer.team.firstName;
     choice.firstPlayer = firstTeamAndPlayer.player.playerPoolEntry.player.fullName;
-    choice.firstPlayerValue = firstTeamAndPlayer.player.playerPoolEntry.player.ownership.auctionValueAverage;
-    choice.firstPlayerPositionId = positionMap[firstTeamAndPlayer.player.playerPoolEntry.player.defaultPositionId];
-
     choice.secondTeam = secondTeamAndPlayer.team.firstName;
     choice.secondPlayer = secondTeamAndPlayer.player.playerPoolEntry.player.fullName;
-    choice.secondPlayervalue = secondTeamAndPlayer.player.playerPoolEntry.player.ownership.auctionValueAverage;
+    /*
+    choice.firstPlayerPositionId = positionMap[firstTeamAndPlayer.player.playerPoolEntry.player.defaultPositionId];
     choice.secondPlayerPositionId = positionMap[secondTeamAndPlayer.player.playerPoolEntry.player.defaultPositionId];
+    if (scoringPeriod >= 4) {
+        choice.firstPlayerValue = firstTeamAndPlayer.player.playerPoolEntry.ratings[0].positionalRanking;
+        choice.secondPlayerValue = secondTeamAndPlayer.player.playerPoolEntry.ratings[0].positionalRanking;
+    }
+    else {
+        choice.firstPlayerValue = firstTeamAndPlayer.player.playerPoolEntry.player.ownership.auctionValueAverage;
+        choice.secondPlayerValue = secondTeamAndPlayer.player.playerPoolEntry.player.ownership.auctionValueAverage;
+    }
+     */
 
     // we're good
     slackPost(msg, choice);
 }
 
-function determineIfChaosRollReady(msg, teams, leagueSize) {
+function determineIfChaosRollReady(msg, teams, leagueSize, scoringPeriod) {
     if (teams.length === leagueSize) {
         //console.log(teams.length);
         //console.log(JSON.stringify(teams[0]));
-        chaosRoll(msg, teams);
+        chaosRoll(msg, teams, scoringPeriod);
         //slackPost(msg, teams[0]);
     }
 }
@@ -289,7 +309,7 @@ bot.message((msg) => {
 					newMember.players = players;
 					//console.log("players " + players.length);
 					newTeams.push(newMember);
-					determineIfChaosRollReady(msg, newTeams, leagueSize);
+					determineIfChaosRollReady(msg, newTeams, leagueSize, scoringPeriod);
 				});
 			});
 		});
